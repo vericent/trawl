@@ -1073,6 +1073,14 @@ export class BrowserPool {
 type FreshBrowser = any
 // biome-ignore lint/suspicious/noExplicitAny: see comment above
 type FreshContext = any
+// The proxy each temporary context was created with, so code that only holds a page can
+// tell whether the context already has its own egress (see `contextProxy`).
+const contextProxies = new WeakMap<object, string>()
+
+/** The proxy a context was given by `newFreshContext`, or undefined if it has none. */
+export const contextProxy = (context: object | undefined): string | undefined =>
+  context ? contextProxies.get(context) : undefined
+
 export const newFreshContext = async (
   browser: FreshBrowser,
   options?: {
@@ -1090,6 +1098,7 @@ export const newFreshContext = async (
     ...(options?.proxy ? { proxy: toPlaywrightProxy(options.proxy) } : {}),
     ...(options?.ignoreHttpsErrors ? { ignoreHTTPSErrors: true } : {}),
   })
+  if (options?.proxy) contextProxies.set(context, options.proxy)
   options?.onCreated?.()
   try {
     await context.addInitScript(() => {

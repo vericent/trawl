@@ -15,7 +15,7 @@ import { sleep } from "../utils/deadline"
 // with good behavioral patterns (no automation signals) score ≥ 0.7 automatically.
 
 import type { Page } from "patchright"
-import { transcribeAudio } from "./stt"
+import { normaliseAudioAnswer, transcribeAudio } from "./stt"
 
 const ANCHOR_IFRAME = 'iframe[src*="recaptcha"][src*="anchor"]'
 const BFRAME_IFRAME = 'iframe[src*="recaptcha"][src*="bframe"]'
@@ -167,7 +167,8 @@ export async function solveRecaptchaV2(page: Page, timeoutMs = 30_000, signal?: 
       console.log("[recaptcha] transcribing audio (attempt", attempt, ")")
 
       const audioSignal = AbortSignal.any([signal, AbortSignal.timeout(Math.max(1, deadline - Date.now()))])
-      const answer = await transcribeAudio(absUrl, audioSignal, page, Math.max(1, deadline - Date.now()))
+      const transcript = await transcribeAudio(absUrl, audioSignal, page, Math.max(1, deadline - Date.now()))
+      const answer = transcript ? normaliseAudioAnswer(transcript) : undefined
 
       if (!answer) {
         console.log("[recaptcha] transcription empty, refreshing audio")
