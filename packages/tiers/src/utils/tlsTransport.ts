@@ -1,4 +1,5 @@
 import { BROWSER_PROFILES, createClient, getProfiles } from "node-wreq"
+import { environmentProxy } from "./envProxy"
 
 export function selectLatestFirefoxProfile<Profile extends string>(profiles: readonly Profile[]): Profile {
   let latest: Profile | undefined
@@ -93,7 +94,9 @@ export async function tlsFetch(url: string, init: TransportOptions = {}): Promis
           : Object.entries(init.headers ?? {})
     const ca = init.tls?.ca
     const pending = nativeClient.fetch(url, {
-      proxy: init.proxy ?? false,
+      // node-wreq's own environment fallback differs from Bun's, so it stays off and
+      // the environment proxy is resolved with Bun's rules. An explicit proxy wins.
+      proxy: init.proxy ?? environmentProxy(url) ?? false,
       method: init.method,
       body: init.body,
       headers,
