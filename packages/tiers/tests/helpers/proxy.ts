@@ -7,9 +7,10 @@ export interface TestProxy {
 }
 
 // A local forward proxy for tests. It records each request line, answers `.invalid`
-// hosts itself, refuses CONNECT, and forwards other plain HTTP requests to their
+// hosts itself, refuses CONNECT (or, with `tunnelTo`, tunnels every CONNECT to that
+// local port whatever host it names), and forwards other plain HTTP requests to their
 // origin over a fresh connection. It never reaches beyond the named local target.
-export async function startTestProxy(name = "test-proxy"): Promise<TestProxy> {
+export async function startTestProxy(name = "test-proxy", tunnelTo?: number): Promise<TestProxy> {
   const seen: string[] = []
   const sockets = new Set<Socket>()
   const server = createServer((client) => {
@@ -25,6 +26,16 @@ export async function startTestProxy(name = "test-proxy"): Promise<TestProxy> {
       const lines = head.subarray(0, end).toString("latin1").split("\r\n")
       const [method = "", target = ""] = (lines[0] ?? "").split(" ")
       seen.push(`${method} ${target}`)
+      if (method === "CONNECT" && tunnelTo) {
+        const upstream = connect(tunnelTo, "127.0.0.1", () => {
+          client.write("HTTP/1.1 200 Connection Established\r\n\r\n")
+          upstream.write(head.subarray(end + 4))
+          client.pipe(upstream)
+          upstream.pipe(client)
+        })
+        upstream.on("error", () => client.destroy())
+        return
+      }
       if (method === "CONNECT") {
         client.end("HTTP/1.1 403 Forbidden\r\ncontent-length: 0\r\nconnection: close\r\n\r\n")
         return

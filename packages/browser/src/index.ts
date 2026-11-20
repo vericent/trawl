@@ -1,6 +1,7 @@
 export { FINGERPRINT, FINGERPRINT_POOL } from "./fingerprint"
 export { MemorySessionCache } from "./memory-session"
 export type { BrowserHandle } from "./pool"
-export { BrowserPool, closeTemporaryContext, newFreshContext, PoolExhaustedError } from "./pool"
+export { BrowserPool, closeTemporaryContext, contextProxy, newFreshContext, PoolExhaustedError } from "./pool"
 export { type PlaywrightProxy, toPlaywrightProxy } from "./proxy"
+export { newProxiedRequestContext } from "./request"
 export { SessionCache, type SessionCacheStore } from "./session"

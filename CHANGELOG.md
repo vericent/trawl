@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Route `TIER1_TRANSPORT=wreq` requests through the environment proxy as the default Bun transport does: `HTTPS_PROXY` for HTTPS, `HTTP_PROXY` for HTTP, lowercase names first, with Bun's `NO_PROXY` matching. Explicit request proxies still take precedence, and an environment proxy still does not disable clearance saving or HTTP replay. Previously wreq connected directly, so deployments whose only egress is a forward proxy failed Tier 1 and sent every page to a browser.
+- Download reCAPTCHA and hCaptcha audio challenges through the environment proxy (`HTTPS_PROXY`/`HTTP_PROXY`, honouring `NO_PROXY`) when the page's context has no proxy of its own. A context created with a proxy, including guarded public-only sessions, still downloads through that proxy. Previously the download used Playwright's request context, which ignores the environment, so where the only egress is a forward proxy it failed and the solver reported an empty transcription without calling `STT_URL`. Download and recogniser failures are now logged with their status or error, with proxy credentials masked. reCAPTCHA answers drop punctuation before submission (Whisper's `7-4-2-9.` is typed as `7429`).
 
 ### Changed
 - Increase the default browser acquisition wait from 15 to 30 seconds so bursts can wait longer for a free browser. Keep explicit `BROWSER_ACQUIRE_TIMEOUT_MS` overrides and the request's overall deadline.
