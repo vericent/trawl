@@ -442,3 +442,32 @@ test("oversized provider responses are cancelled without creating another task",
   expect(calls).toBe(1)
   expect(session.supports("turnstile")).toBe(false)
 })
+
+test("the configured solver proxy is used when the request names none, and the request's wins", async () => {
+  const { page } = fixture()
+  const { calls, fetcher } = provider([
+    { errorId: 0, taskId: 43 },
+    { errorId: 0, status: "ready", solution: { token: "owned-response" } },
+  ])
+  const configured = { ...options, proxy: "http://lane-user:lane-pass@lane.example.com:8003" }
+  const session = new ExternalCaptchaSession(configured, fetcher, async () => {})
+  expect(await session.solve(page, "turnstile", 10000)).toBe(true)
+  expect(calls[0]?.body.task).toMatchObject({
+    type: "TurnstileTask",
+    proxyType: "http",
+    proxyAddress: "lane.example.com",
+    proxyPort: 8003,
+    proxyLogin: "lane-user",
+    proxyPassword: "lane-pass",
+  })
+
+  const second = provider([
+    { errorId: 0, taskId: 44 },
+    { errorId: 0, status: "ready", solution: { token: "owned-response" } },
+  ])
+  const other = new ExternalCaptchaSession(configured, second.fetcher, async () => {})
+  expect(
+    await other.solve(fixture().page, "turnstile", 10000, undefined, "socks5://u:p@request.example.com:1080"),
+  ).toBe(true)
+  expect(second.calls[0]?.body.task).toMatchObject({ proxyType: "socks5", proxyAddress: "request.example.com" })
+})

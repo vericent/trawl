@@ -10,6 +10,10 @@ export interface ExternalCaptchaOptions {
   timeoutMs: number
   localTimeoutMs: number
   profiles?: CaptchaProfile[]
+  // The proxy the provider's workers solve through when the request names none (CAPTCHA_SOLVER_PROXY):
+  // for a deployment whose own way out is a local hop to this same upstream, so the solve leaves from
+  // the scraper's address. DataDome's slider, for one, accepts a solve only from that address.
+  proxy?: string
 }
 
 const selectors = {
@@ -240,11 +244,11 @@ export class ExternalCaptchaSession {
     try {
       const url = new URL(page.url())
       if (!/^https?:$/.test(url.protocol) || url.username || url.password) return false
-      proxyFields(proxy)
+      proxyFields(proxy ?? this.options.proxy)
       if (kind === "cloudflare-challenge") return Boolean(await this.cloudflare.get(page)?.read(page))
       const profile = this.profile(kind)
       if (profile) {
-        const task = await prepareCaptchaProfile(page, profile, proxyFields(proxy))
+        const task = await prepareCaptchaProfile(page, profile, proxyFields(proxy ?? this.options.proxy))
         this.detections.set(captchaTask(profile.taskType)?.kind ?? kind, task ? "ready" : "incomplete-profile")
         return Boolean(task)
       }
@@ -285,7 +289,7 @@ export class ExternalCaptchaSession {
         const parsedURL = new URL(websiteURL)
         if (!/^https?:$/.test(parsedURL.protocol) || parsedURL.username || parsedURL.password) return false
         const profile = this.profile(kind)
-        const fields = proxyFields(proxy)
+        const fields = proxyFields(proxy ?? this.options.proxy)
         const capture = kind === "cloudflare-challenge" ? this.cloudflare.get(page) : undefined
         const cloudflare = await capture?.read(page)
         if (kind === "cloudflare-challenge" && !cloudflare) return false
@@ -300,7 +304,7 @@ export class ExternalCaptchaSession {
               ? "RecaptchaV2EnterpriseTask"
               : "RecaptchaV2Task"
         const task = prepared ?? {
-          type: `${taskType}${proxy ? "" : "Proxyless"}`,
+          type: `${taskType}${fields.proxyType ? "" : "Proxyless"}`,
           websiteURL,
           websiteKey: cloudflare?.websiteKey ?? widget?.sitekey,
           ...fields,

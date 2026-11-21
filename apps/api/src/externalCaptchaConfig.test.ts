@@ -41,3 +41,13 @@ test("profile parsing fails startup with a redacted error and remains disabled w
   expect(parseExternalCaptchaConfig({ CAPTCHA_SOLVER_PROFILES: env.CAPTCHA_SOLVER_PROFILES })).toBeUndefined()
   expect(parseExternalCaptchaConfig({ ...env, CAPTCHA_SOLVER_PROFILES: "[]" })?.profiles).toEqual([])
 })
+
+test("CAPTCHA_SOLVER_PROXY is passed on, and must be an http or socks URL", () => {
+  const base = { CAPTCHA_SOLVER: "2captcha", TWOCAPTCHA_API_KEY: "owned-key" }
+  expect(parseExternalCaptchaConfig(base)?.proxy).toBeUndefined()
+  expect(parseExternalCaptchaConfig({ ...base, CAPTCHA_SOLVER_PROXY: "http://u:p@lane.example.com:8003" })?.proxy).toBe(
+    "http://u:p@lane.example.com:8003",
+  )
+  expect(() => parseExternalCaptchaConfig({ ...base, CAPTCHA_SOLVER_PROXY: "https://lane.example.com" })).toThrow()
+  expect(() => parseExternalCaptchaConfig({ ...base, CAPTCHA_SOLVER_PROXY: "not a url" })).toThrow()
+})

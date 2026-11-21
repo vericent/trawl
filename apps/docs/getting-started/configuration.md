@@ -628,6 +628,7 @@ itself never enables the service. No additional model or solver SDK is installed
 | `CAPTCHA_SOLVER_MAX_TASKS`        | `1`      | Maximum paid task creation attempts per scrape, shared across tiers and proxy retries; range 1-3 |
 | `CAPTCHA_SOLVER_LOCAL_TIMEOUT_MS` | `10000`  | Budget offered to a supported built-in solver before fallback; range 1000-30000 ms               |
 | `CAPTCHA_SOLVER_TIMEOUT_MS`       | `120000` | External operation limit, also capped by the remaining scrape budget; range 1000-180000 ms       |
+| `CAPTCHA_SOLVER_PROXY`            | unset    | Proxy (`http`, `socks4`, `socks5` URL) given to the provider for a task when the request names none: set it to the upstream your own egress forwards to, so the solve leaves from your address (DataDome's slider requires it). It holds credentials; keep it secret |
 | `CAPTCHA_SOLVER_PROFILES`         | unset    | JSON array of hostname-specific task and delivery profiles; up to 64 profiles, 256 KB total      |
 
 ```dotenv

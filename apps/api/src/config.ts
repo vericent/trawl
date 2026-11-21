@@ -211,8 +211,20 @@ export function parseExternalCaptchaConfig(
       throw new Error("Invalid CAPTCHA_SOLVER_PROFILES configuration")
     }
   }
+  const proxy = env.CAPTCHA_SOLVER_PROXY?.trim() || undefined
+  if (proxy) {
+    let url: URL
+    try {
+      url = new URL(proxy)
+    } catch {
+      throw new Error("CAPTCHA_SOLVER_PROXY must be an http, socks4 or socks5 URL")
+    }
+    if (!["http:", "socks4:", "socks5:"].includes(url.protocol) || !url.hostname)
+      throw new Error("CAPTCHA_SOLVER_PROXY must be an http, socks4 or socks5 URL")
+  }
   return {
     apiKey,
+    ...(proxy ? { proxy } : {}),
     maxTasks: number("CAPTCHA_SOLVER_MAX_TASKS", 1, 1, 3),
     timeoutMs: number("CAPTCHA_SOLVER_TIMEOUT_MS", 120000, 1000, 180000),
     localTimeoutMs: number("CAPTCHA_SOLVER_LOCAL_TIMEOUT_MS", 10000, 1000, 30000),
