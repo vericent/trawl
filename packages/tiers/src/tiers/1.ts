@@ -103,6 +103,9 @@ export async function runTier1(
   headersTimeoutMs?: number,
   observeResponse?: (evidence: WafEvidence) => void,
   networkProxy?: string,
+  // Follow at most this many redirects; the next one is returned as the answer (its Location and
+  // Set-Cookie with it), so a caller can follow it itself. Unset: follow them all (up to the cap).
+  maxRedirects?: number,
 ): Promise<Tier1Result> {
   const start = Date.now()
   const deadline = start + timeoutMs
@@ -129,6 +132,7 @@ export async function runTier1(
       observeResponse,
       networkProxy,
       maxResponseBytes,
+      maxRedirects,
     )
   const first = await once(url, extraHeaders)
   if (
@@ -279,6 +283,7 @@ async function runTier1Once(
   observeResponse?: (evidence: WafEvidence) => void,
   networkProxy?: string,
   maxResponseBytes?: number,
+  maxRedirects?: number,
 ): Promise<Tier1Result> {
   const start = Date.now()
   const headersAbort = headersTimeoutMs === undefined ? undefined : new AbortController()
@@ -352,6 +357,7 @@ async function runTier1Once(
       }
       const location = res.headers.get("location")
       if (!location) break
+      if (maxRedirects !== undefined && redirects >= maxRedirects) break
       if (redirects >= (validateOutboundUrl || ignoreCertificateErrors || sessionCookies ? 9 : 19))
         throw new Error("Too many redirects")
       await res.body?.cancel()
@@ -711,6 +717,8 @@ async function runTier1Once(
         durationMs: Date.now() - start,
         reason: `http-${res.status}`,
         effectiveUrl: currentUrl,
+        // the refusal's own page, for a caller that asked for refusals back (returnRefusals)
+        html: isTextContentType(contentType) ? decodeTextBody(decodedBytes, contentType) : "",
         responseHeaders,
         contentType,
         body: rawBytes,
