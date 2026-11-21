@@ -112,8 +112,9 @@ export interface ScrapeRequest {
   // Tier 1 follows at most this many redirects (0 to 19); the next 3xx comes back as the answer,
   // with its Location and Set-Cookie, for a caller that follows redirects itself. Needs maxTier 1.
   maxRedirects?: number
-  // With maxTier 1: a refusal (403, 429, a block page) comes back as the answer with its status,
-  // headers and page, instead of an error with none.
+  // With maxTier 1: a refusal (403, 429, a block page) or a page tier 1 would hand to a browser
+  // (needs-js: a challenge, a captcha widget, a JavaScript shell) comes back as the answer with its
+  // status, headers and page, instead of an error with none. `timings` names tier 1's verdict.
   returnRefusals?: boolean
 }
 

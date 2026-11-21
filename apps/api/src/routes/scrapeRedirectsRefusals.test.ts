@@ -20,6 +20,16 @@ beforeAll(() => {
           status: 429,
           headers: { "content-type": "application/json", "retry-after": "30" },
         })
+      if (path === "/challenge")
+        return new Response("<html><head><title>Just a moment...</title></head><body></body></html>", {
+          status: 403,
+          headers: { "content-type": "text/html", "cf-mitigated": "challenge" },
+        })
+      if (path === "/widget")
+        return new Response(
+          '<html><head><title>Example</title><script src="https://www.google.com/recaptcha/api.js"></script></head><body><div class="g-recaptcha"></div></body></html>',
+          { headers: { "content-type": "text/html; charset=utf-8", "x-test": "kept" } },
+        )
       return new Response("not found", { status: 404 })
     },
   })
@@ -43,6 +53,7 @@ type Answer = {
   url?: string
   error?: string
   responseHeaders?: Record<string, string>
+  timings?: { tier: number; status: string; reason?: string }[]
 }
 const post = async (body: Record<string, unknown>) => {
   const res = await scrapeRoute(deps, () => ({}), undefined, false).handle(
@@ -92,6 +103,29 @@ describe("/scrape returnRefusals", () => {
     expect(json.statusCode).toBe(429)
     expect(json.html).toBe('{"error":"slow down"}')
     expect(json.responseHeaders?.["retry-after"]).toBe("30")
+  })
+
+  test("a page tier 1 would hand to a browser comes back with its page, and timings say why", async () => {
+    const { status, json } = await post({ url: `${base}/widget`, maxTier: 1, returnRefusals: true })
+    expect(status).toBe(200)
+    expect(json.statusCode).toBe(200)
+    expect(json.html).toContain('class="g-recaptcha"')
+    expect(json.responseHeaders?.["x-test"]).toBe("kept")
+    expect(json.timings?.[0]).toMatchObject({ tier: 1, status: "needs-js", reason: "recaptcha-shell" })
+  })
+
+  test("a challenge known by its header comes back with its status", async () => {
+    const { status, json } = await post({ url: `${base}/challenge`, maxTier: 1, returnRefusals: true })
+    expect(status).toBe(200)
+    expect(json.statusCode).toBe(403)
+    expect(json.responseHeaders?.["cf-mitigated"]).toBe("challenge")
+    expect(json.timings?.[0]).toMatchObject({ status: "needs-js", reason: "cloudflare-challenge" })
+  })
+
+  test("without it, a needs-js page is still an error", async () => {
+    const { status, json } = await post({ url: `${base}/widget`, maxTier: 1 })
+    expect(status).toBe(500)
+    expect(json.statusCode).toBeUndefined()
   })
 
   test("without it, the refusal is still an error", async () => {
