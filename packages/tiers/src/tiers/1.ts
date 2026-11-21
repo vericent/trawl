@@ -25,6 +25,7 @@ import {
   isCloudflarePage,
   isExplicitChallengeRejection,
 } from "../utils/detect"
+import { environmentProxy } from "../utils/envProxy"
 import { isGoogleSorryUrl } from "../utils/googleSorry"
 import { normalizeHtml } from "../utils/html"
 import { HttpSessionCookies } from "../utils/httpSessionCookies"
@@ -396,7 +397,10 @@ async function runTier1Once(
     const setCookies = res.headers.getSetCookie()
     if (setCookies.length > 0) responseHeaders["set-cookie"] = setCookies.join("\n")
     const contentType = responseHeaders["content-type"] ?? "application/octet-stream"
-    const proxyFailure = proxy || networkProxy ? proxyResponseFailure(res.status, responseHeaders) : undefined
+    // through a proxy: the request's, the MCP egress, or the environment's (HTTP(S)_PROXY, which the
+    // transports honour when neither is set)
+    const viaProxy = proxy || networkProxy || environmentProxy(currentUrl)
+    const proxyFailure = viaProxy ? proxyResponseFailure(res.status, responseHeaders) : undefined
     if (proxyFailure) {
       observeResponse?.({ statusCode: res.status, reasonPhrase: res.statusText, responseHeaders })
       await res.body?.cancel().catch(() => {})

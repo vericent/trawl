@@ -21,6 +21,7 @@ import type { CaptureOptions } from "./utils/capture"
 import { normalizeInputCookies } from "./utils/cookies"
 import { createCrossedLandingGuard, type LandingProbe } from "./utils/crossedLanding"
 import { DeadlineError, RequestBudget } from "./utils/deadline"
+import { environmentProxy } from "./utils/envProxy"
 import { normalizeHtml } from "./utils/html"
 import { HttpSessionCookies, httpReplayProof } from "./utils/httpSessionCookies"
 import { metaRefreshTarget } from "./utils/metaRefresh"
@@ -568,7 +569,8 @@ async function scrapeWithinBudget(
     if (ignoreCertificateErrors) certificateError = t1.certificateError
     const crossed1 = hasUsablePayload(t1) ? await refuseCrossed(t1.effectiveUrl, httpUserAgent, tier1Proxy) : undefined
     emit(crossed1 ? crossedTiming(t1, crossed1) : t1)
-    if (explicitProxy && t1.status === "error" && t1.reason?.startsWith("proxy-")) {
+    // a proxy that couldn't reach the host (or refused us) fails the same in a browser: no escalation
+    if ((explicitProxy || environmentProxy(req.url)) && t1.status === "error" && t1.reason?.startsWith("proxy-")) {
       throw new ScrapeError(t1.reason, timings)
     }
     if (httpSession && httpReplayPost && !hasUsablePayload(t1) && !t1.explicitChallenge) {
