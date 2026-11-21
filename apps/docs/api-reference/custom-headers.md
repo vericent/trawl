@@ -50,6 +50,13 @@ If an integration needs transparent forwarding of authentication cookies, author
 user agent, use the [HTTP/HTTPS proxy](/proxy/overview). Its trusted proxy path preserves end-to-end
 headers and strips only hop-by-hop connection headers.
 
+A deployment that serves only its owner's own services can set `SCRAPE_TRUSTED_HEADERS=true` instead:
+`/scrape` (and `/sessions/:id/scrape`) then applies the proxy's rule, so `Cookie`, `Authorization` and
+`User-Agent` reach the site at Tier 1. Any caller of that instance can then send credentials through
+it, so keep it on a private address. Caller cookies are never stored in the session cache, a redirect to
+another origin still drops `Cookie` and `Authorization`, and a request carrying `Authorization` is not
+escalated to the browser tiers.
+
 ## How headers are applied per tier
 
 | Tier                                      | Mechanism                           | Scope                            |
@@ -90,5 +97,6 @@ When a page requires both challenge bypass and custom headers, the sequence is:
 
 ::: warning Authentication headers
 `Authorization`, `Cookie`, and caller-controlled `User-Agent` values are not accepted by `/v1` or
-`/scrape`. Configure TRAWL as a forward proxy when those headers must pass through unchanged.
+`/scrape` unless `SCRAPE_TRUSTED_HEADERS=true`. Otherwise configure TRAWL as a forward proxy when those
+headers must pass through unchanged.
 :::

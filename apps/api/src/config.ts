@@ -152,6 +152,13 @@ export const residentialProxyPool = ProxyPool.fromEnv(
   SCRAPE_PROXY_SELECTION,
 )
 
+// Trusted callers on /scrape: Cookie, Authorization and User-Agent reach the site at tier 1, as the
+// MITM proxy passes them, instead of being dropped. Only for a trawl that answers its owner's own
+// services (a private address, no public port): any caller can then send credentials through it.
+// Caller cookies are never written to trawl's clearance store, and a request carrying Authorization
+// stays at tier 1 (the browser tiers refuse it).
+export const SCRAPE_TRUSTED_HEADERS = /^(1|true|yes)$/i.test(process.env.SCRAPE_TRUSTED_HEADERS?.trim() ?? "")
+
 // MITM forward-proxy mode
 // Direct HTTP(S) forwarding with browser escalation for supported challenges.
 // Fingerprint-bound clearances must be reused through this proxy, not a separate client.
