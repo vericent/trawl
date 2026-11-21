@@ -69,6 +69,15 @@ describe("Tier 1: a captcha widget on a page with substance is the page", () => 
     })
   })
 
+  test("a page whose head styles fill the first 64 KiB is judged on the whole page", async () => {
+    const styled = page("Employment | Example", `${RECAPTCHA}<style>${".a{color:red}".repeat(6_000)}</style>`)
+    expect(styled.indexOf("<body>")).toBeGreaterThan(65_536)
+    await withFetch(html(styled), async () => {
+      const result = await runTier1("https://example.test/employment")
+      expect(result.status).toBe("success")
+    })
+  })
+
   test("a thin page that is only the widget still escalates", async () => {
     const thin = `<html><head><title>Example</title>${RECAPTCHA}</head><body><div class="g-recaptcha" data-sitekey="k"></div></body></html>`
     await withFetch(html(thin), async () => {

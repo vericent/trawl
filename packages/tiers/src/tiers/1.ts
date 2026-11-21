@@ -56,6 +56,9 @@ export interface Tier1Result extends TierResult {
   cookies?: Cookie[]
 }
 
+// How much of a page hasPageSubstance reads when a captcha widget is found on it.
+const SUBSTANCE_MAX_BYTES = 2 * 1024 * 1024
+
 // Methods that may carry a request body per RFC 7231/9341. CONNECT is excluded
 // (tunneling verb), TRACE/GET/HEAD/OPTIONS excluded (no body semantics).
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH", "DELETE", "QUERY"])
@@ -561,7 +564,14 @@ async function runTier1Once(
     // only renders after JS executes. Escalate so Tier 3 runs the page in a browser,
     // executes JS, and the solver can engage the actual widget. A widget on a page with substance
     // (a title, links and text: hasPageSubstance) guards a form and is not a shell: the page is the answer.
-    const widgetOnly = (found: boolean) => found && !hasPageSubstance(previewText)
+    // It reads the page, not the 64 KiB preview: a theme's inline styles can fill the preview before <body>.
+    const widgetOnly = (found: boolean) =>
+      found &&
+      !hasPageSubstance(
+        decodedBytes.length <= previewLen
+          ? previewText
+          : new TextDecoder("utf-8", { fatal: false }).decode(decodedBytes.subarray(0, SUBSTANCE_MAX_BYTES)),
+      )
     if (widgetOnly(hasHcaptcha(previewText))) {
       return {
         tier: 1,
