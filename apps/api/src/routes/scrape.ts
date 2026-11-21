@@ -11,6 +11,7 @@ import {
 import type { ExtractResponse, ReadResponse, ScrapeRequest, ScrapeResponse, ScrapeResult } from "@trawl/types"
 import { type Context, Elysia } from "elysia"
 import { flareSolverrError } from "../adapters/flaresolverr"
+import { SCRAPE_TRUSTED_HEADERS } from "../config"
 import { getDeps, getPool } from "../deps"
 import { type MetricsStore, metrics } from "../metrics"
 import { preparePageOperation } from "../pageContent/options"
@@ -41,6 +42,7 @@ export function scrapeRoute(
   deps: () => OrchestratorDeps = getDeps,
   poolReady: () => unknown = getPool,
   metricsStore: MetricsStore = metrics,
+  trustedHeaders: boolean = SCRAPE_TRUSTED_HEADERS,
 ) {
   const handle = async (body: unknown, set: Context["set"], sessionId?: string, operation?: "read" | "extract") => {
     const started = Date.now()
@@ -59,8 +61,9 @@ export function scrapeRoute(
         metricsStore.record({ source: "native", url: req.url, durationMs: Date.now() - started, statusCode: 503 })
         return { error: "Browser pool initializing, retry in a few seconds" }
       }
-      const sanitized = { ...req, headers: sanitizeHeaders(req.headers) }
-      const orchestratorDeps = deps()
+      // Trusted: the orchestrator applies the proxy's rules (only hop-by-hop headers dropped).
+      const sanitized = trustedHeaders ? req : { ...req, headers: sanitizeHeaders(req.headers) }
+      const orchestratorDeps = trustedHeaders ? { ...deps(), trustedProxyHeaders: true } : deps()
       scraperStarted = true
       let output: ReadResponse | ExtractResponse | undefined
       const result = await runLoggedScrape(
