@@ -23,6 +23,7 @@ import {
   hasShumei,
   hasTurnstile,
   isBlocked,
+  isCloudflareErrorPage,
   isCloudflarePage,
   isExplicitChallengeRejection,
 } from "../utils/detect"
@@ -523,7 +524,10 @@ async function runTier1Once(
       }
     }
 
-    if (isCloudflarePage(previewText, responseHeaders)) {
+    // Cloudflare's error page for a site it can't serve is the site's answer, not a challenge: a
+    // 409/52x/530 comes back as the page, a 403/429 as a refusal (isBlocked below, by its status).
+    const cloudflareError = isCloudflareErrorPage(previewText, responseHeaders, res.status)
+    if (!cloudflareError && isCloudflarePage(previewText, responseHeaders)) {
       return {
         tier: 1,
         certificateError,
@@ -716,7 +720,7 @@ async function runTier1Once(
       }
     }
 
-    if (isBlocked(res.status, previewText)) {
+    if (isBlocked(res.status, cloudflareError ? "" : previewText)) {
       return {
         tier: 1,
         certificateError,
