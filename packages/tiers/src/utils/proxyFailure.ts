@@ -12,6 +12,11 @@ export function proxyResponseFailure(
 ): "proxy-authentication-failed" | "proxy-connection-failed" | undefined {
   if (status === 407) return "proxy-authentication-failed"
   if (hasProxyStatusError(headers)) return "proxy-connection-failed"
+  // Squid (Oxylabs' and most forward proxies) marks the error pages it writes itself with
+  // X-Squid-Error (ERR_CONNECT_FAIL, ERR_DNS_FAIL, ...) and sends no Proxy-Status: without this a
+  // proxy that couldn't reach the host reads as the site answering 503. Only asked of answers that
+  // came through a proxy, so a site's own Squid in front of it isn't taken for ours.
+  if (/^ERR_/i.test(headers["x-squid-error"] ?? "")) return "proxy-connection-failed"
   return undefined
 }
 

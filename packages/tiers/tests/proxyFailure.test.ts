@@ -14,3 +14,15 @@ describe("proxy failure classification", () => {
     expect(isProxyTransportFailure(new Error("NS_ERROR_PROXY_CONNECTION_REFUSED"))).toBeTrue()
   })
 })
+
+describe("Squid's own error pages", () => {
+  test("X-Squid-Error marks a proxy that couldn't reach the host", () => {
+    expect(proxyResponseFailure(503, { server: "squid", "x-squid-error": "ERR_CONNECT_FAIL 110" })).toBe(
+      "proxy-connection-failed",
+    )
+    expect(proxyResponseFailure(503, { "x-squid-error": "ERR_DNS_FAIL 0" })).toBe("proxy-connection-failed")
+  })
+  test("a 503 without it is the site's", () => {
+    expect(proxyResponseFailure(503, { server: "nginx" })).toBeUndefined()
+  })
+})
