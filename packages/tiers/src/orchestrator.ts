@@ -501,6 +501,8 @@ async function scrapeWithinBudget(
       ? new URL(req.url).origin
       : undefined
   let headful = false
+  // A tier-1 refusal (403/429 and the like), kept for returnRefusals.
+  let refusedT1: ScrapeResult | undefined
 
   // Tier 1: plain HTTP fetch
   if (minTier <= 1 && !skipTier1ForProxy && maxTier >= 1) {
@@ -533,6 +535,7 @@ async function scrapeWithinBudget(
         : undefined,
       observeResponse ? (evidence) => observeResponse({ ...evidence, tier: 1 }) : undefined,
       deps.networkProxy ? await budget.run(async () => deps.networkProxy?.(tier1Proxy)) : undefined,
+      req.maxRedirects,
     )
     if (
       httpSession &&
@@ -592,11 +595,30 @@ async function scrapeWithinBudget(
         contentType: t1.contentType,
       }
     }
+    if (req.returnRefusals && t1.status === "blocked" && t1.statusCode !== undefined) {
+      refusedT1 = {
+        url: t1.effectiveUrl ?? req.url,
+        html: t1.html ?? "",
+        cookies: [],
+        userAgent: httpUserAgent,
+        statusCode: t1.statusCode,
+        tier: 1,
+        sessionCached: false,
+        timings,
+        totalMs: 0,
+        proxyUsed: Boolean(tier1Proxy),
+        certificateError,
+        body: t1.body,
+        responseHeaders: t1.responseHeaders,
+        contentType: t1.contentType,
+      }
+    }
     if (httpSession && httpReplayPost) capture.postReplay = new PostReplay(budget)
     headful = t1.challenge === "datadome"
   }
 
   if (maxTier < 2) {
+    if (refusedT1) return { ...refusedT1, totalMs: Date.now() - totalStart }
     throw failure("Max tier reached without success")
   }
   // Browser header overrides persist through redirects, unlike HTTP credential stripping.

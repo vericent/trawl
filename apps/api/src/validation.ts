@@ -117,10 +117,23 @@ export function validateScrapeRequest(body: unknown): asserts body is ScrapeRequ
     "favicons",
     "httpReplay",
     "includeBody",
+    "returnRefusals",
   ] as const) {
     if (req[field] !== undefined && typeof req[field] !== "boolean") {
       throw new RequestValidationError(`${field} must be a boolean`, 400)
     }
+  }
+  if (
+    req.maxRedirects !== undefined &&
+    (typeof req.maxRedirects !== "number" ||
+      !Number.isInteger(req.maxRedirects) ||
+      req.maxRedirects < 0 ||
+      req.maxRedirects > 19)
+  ) {
+    throw new RequestValidationError("maxRedirects must be an integer from 0 to 19", 400)
+  }
+  if ((req.maxRedirects !== undefined || req.returnRefusals) && req.maxTier !== 1) {
+    throw new RequestValidationError("maxRedirects and returnRefusals apply to tier 1 only; set maxTier 1", 400)
   }
   if (req.captureResponses !== undefined) {
     if (!Array.isArray(req.captureResponses) || !req.captureResponses.every((pattern) => typeof pattern === "string")) {
