@@ -44,6 +44,7 @@ interface ScrapeRequest {
   followMetaRefresh?: boolean            // follow bounded meta refresh redirects, default false
   allowShortContent?: boolean            // return a browser page under 100 characters instead of failing it, default false
   favicons?: boolean                     // fetch the page's declared icons from inside the page, default false
+  includeBody?: boolean                  // also return the response's bytes as base64 `body`, default false
 }
 ```
 
@@ -87,6 +88,7 @@ not relax that guard.
 | `followMetaRefresh`         | boolean  | false    | Follow HTTP(S) meta refresh redirects with delays up to 10 seconds, allowing at most 3 browser-followed hops. Tier 1 escalates eligible HTML forwarders to a browser; Tiers 2-4 follow in the existing context. Reload-only refreshes are ignored. Navigation failures, loops, and exhausted budgets fail the attempt instead of returning the forwarder. |
 | `allowShortContent`         | boolean  | false    | Return a browser-tier (3-4) document under 100 characters as a success instead of failing it with `page returned empty content`, for callers that judge a tiny page themselves. Browser network-error pages and challenge walls are still rejected. |
 | `favicons`                  | boolean  | false    | Fetch the apex `/favicon.ico` and every declared link whose `rel` contains `icon` from inside the page on the browser tiers (2-4) and return them as `favicons`. Tier 1 never produces them; use `skipHttp: true` to force a browser attempt - see the note below                                                                                         |
+| `includeBody`               | boolean  | false    | Also return the response's bytes as `body`, base64, with any Content-Encoding undone (`bodyEncoding: "base64"`). Text answers already arrive in `html`; use this for binary files such as a gzipped sitemap served as `application/gzip`, where `html` is empty |
 
 ### Embedded CAPTCHA widgets
 
@@ -130,6 +132,8 @@ interface ScrapeResult {
   mhtml?: string               // bounded multipart/related archive, only for requested successful HTML browser results
   certificateError?: string    // why the certificate failed verification, only when ignoreCertificateErrors was set and a verified attempt observed it
   favicons?: FaviconEntry[]    // the page's icons, only when requested and a browser tier served the page
+  body?: string                // the response's bytes, base64, Content-Encoding undone; only with includeBody
+  bodyEncoding?: 'base64'      // present with body
 }
 
 interface ConsoleLogEntry {

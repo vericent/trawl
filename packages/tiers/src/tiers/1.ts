@@ -58,7 +58,11 @@ export interface Tier1Result extends TierResult {
 // (tunneling verb), TRACE/GET/HEAD/OPTIONS excluded (no body semantics).
 const METHODS_WITH_BODY = new Set(["POST", "PUT", "PATCH", "DELETE", "QUERY"])
 
-const decodeResponseBody = (body: Uint8Array, contentEncoding?: string, maxOutputLength?: number): Uint8Array => {
+export const decodeResponseBody = (
+  body: Uint8Array,
+  contentEncoding?: string,
+  maxOutputLength?: number,
+): Uint8Array => {
   const encodings = (contentEncoding ?? "")
     .split(",")
     .map((encoding) => encoding.trim().toLowerCase())
