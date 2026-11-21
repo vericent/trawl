@@ -18,6 +18,7 @@ import {
   hasDuckDuckGoChallenge,
   hasFriendlyCaptcha,
   hasHcaptcha,
+  hasPageSubstance,
   hasRecaptcha,
   hasShumei,
   hasTurnstile,
@@ -558,8 +559,10 @@ async function runTier1Once(
     // captcha widget via <script src="...api.js">. Plain fetch sees the shell and
     // would otherwise report success - but the real content (including the widget)
     // only renders after JS executes. Escalate so Tier 3 runs the page in a browser,
-    // executes JS, and the solver can engage the actual widget.
-    if (hasHcaptcha(previewText)) {
+    // executes JS, and the solver can engage the actual widget. A widget on a page with substance
+    // (a title, links and text: hasPageSubstance) guards a form and is not a shell: the page is the answer.
+    const widgetOnly = (found: boolean) => found && !hasPageSubstance(previewText)
+    if (widgetOnly(hasHcaptcha(previewText))) {
       return {
         tier: 1,
         certificateError,
@@ -573,7 +576,7 @@ async function runTier1Once(
         statusCode: res.status,
       }
     }
-    if (hasRecaptcha(previewText)) {
+    if (widgetOnly(hasRecaptcha(previewText))) {
       return {
         tier: 1,
         certificateError,
@@ -587,7 +590,7 @@ async function runTier1Once(
         statusCode: res.status,
       }
     }
-    if (hasTurnstile(previewText)) {
+    if (widgetOnly(hasTurnstile(previewText))) {
       return {
         tier: 1,
         certificateError,
