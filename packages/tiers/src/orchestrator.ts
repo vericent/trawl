@@ -11,7 +11,7 @@ import type {
 } from "@trawl/types"
 import type { BrowserSessions } from "./browserSessions"
 import { type ExternalCaptchaOptions, ExternalCaptchaSession } from "./solvers/externalCaptcha"
-import { runTier1, type Tier1Result } from "./tiers/1"
+import { decodeResponseBody, runTier1, type Tier1Result } from "./tiers/1"
 import { runTier2, type Tier2Result } from "./tiers/2"
 import { runTier3, type Tier3Result } from "./tiers/3"
 // Tier 4 (residential proxy) is dynamically imported only when needed.
@@ -27,7 +27,7 @@ import { HttpSessionCookies, httpReplayProof } from "./utils/httpSessionCookies"
 import { metaRefreshTarget } from "./utils/metaRefresh"
 import { PostReplay } from "./utils/postReplay"
 import { type ProxyPool, proxyIdentity } from "./utils/proxyRotator"
-import { isHtmlContentType, isNonHtmlTextContentType } from "./utils/response"
+import { decodeTextBody, isHtmlContentType, isNonHtmlTextContentType, isTextContentType } from "./utils/response"
 import {
   proxySanitizeHeaders,
   RequestValidationError,
@@ -122,6 +122,12 @@ const extractDomain = (url: string): string => {
     return url
   }
 }
+
+// A refused tier-1 answer's page as text: a needs-js verdict keeps only the wire bytes.
+const refusalText = (t1: Tier1Result): string =>
+  t1.body?.length && isTextContentType(t1.contentType ?? "")
+    ? decodeTextBody(decodeResponseBody(t1.body, t1.responseHeaders?.["content-encoding"]), t1.contentType ?? "")
+    : ""
 
 const hasUsablePayload = (result: { status: TierResult["status"]; html?: string; body?: Uint8Array }): boolean =>
   result.status === "success" && (result.body !== undefined || Boolean(result.html))
@@ -502,7 +508,8 @@ async function scrapeWithinBudget(
       ? new URL(req.url).origin
       : undefined
   let headful = false
-  // A tier-1 refusal (403/429 and the like), kept for returnRefusals.
+  // A tier-1 refusal (403/429, a block page, or a page tier 1 would hand to a browser), kept for
+  // returnRefusals.
   let refusedT1: ScrapeResult | undefined
 
   // Tier 1: plain HTTP fetch
@@ -597,10 +604,10 @@ async function scrapeWithinBudget(
         contentType: t1.contentType,
       }
     }
-    if (req.returnRefusals && t1.status === "blocked" && t1.statusCode !== undefined) {
+    if (req.returnRefusals && (t1.status === "blocked" || t1.status === "needs-js") && t1.statusCode !== undefined) {
       refusedT1 = {
         url: t1.effectiveUrl ?? req.url,
-        html: t1.html ?? "",
+        html: t1.html ?? refusalText(t1),
         cookies: [],
         userAgent: httpUserAgent,
         statusCode: t1.statusCode,

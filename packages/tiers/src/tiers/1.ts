@@ -752,7 +752,18 @@ async function runTier1Once(
       for (const node of document.querySelectorAll("head, script, style, template, noscript, svg")) node.remove()
       const text = (document.body?.textContent ?? "").replace(/\s+/g, " ").trim()
       if (!text || /^loading[.\s]*$/i.test(text)) {
-        return { tier: 1, status: "needs-js", durationMs: Date.now() - start, reason: "javascript-shell" }
+        return {
+          tier: 1,
+          certificateError,
+          status: "needs-js",
+          durationMs: Date.now() - start,
+          reason: "javascript-shell",
+          effectiveUrl: res.url || currentUrl,
+          responseHeaders,
+          contentType,
+          body: rawBytes,
+          statusCode: res.status,
+        }
       }
     }
 

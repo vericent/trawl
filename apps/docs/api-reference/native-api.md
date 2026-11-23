@@ -46,7 +46,7 @@ interface ScrapeRequest {
   favicons?: boolean                     // fetch the page's declared icons from inside the page, default false
   includeBody?: boolean                  // also return the response's bytes as base64 `body`, default false
   maxRedirects?: number                  // tier 1 follows at most this many (0-19); the next 3xx is the answer
-  returnRefusals?: boolean               // with maxTier 1: a 403/429 or block page is the answer, not an error
+  returnRefusals?: boolean               // with maxTier 1: a 403/429, block page or needs-js page is the answer, not an error
 }
 ```
 
@@ -92,7 +92,7 @@ not relax that guard.
 | `favicons`                  | boolean  | false    | Fetch the apex `/favicon.ico` and every declared link whose `rel` contains `icon` from inside the page on the browser tiers (2-4) and return them as `favicons`. Tier 1 never produces them; use `skipHttp: true` to force a browser attempt - see the note below                                                                                         |
 | `includeBody`               | boolean  | false    | Also return the response's bytes as `body`, base64, with any Content-Encoding undone (`bodyEncoding: "base64"`). Text answers already arrive in `html`; use this for binary files such as a gzipped sitemap served as `application/gzip`, where `html` is empty |
 | `maxRedirects`              | number   | -        | Tier 1 follows at most this many redirects (0 to 19); the next 3xx comes back as the answer, with its `location` and `set-cookie` in `responseHeaders`, so the caller can follow it and keep each hop's cookies. Needs `maxTier: 1` |
-| `returnRefusals`            | boolean  | false    | With `maxTier: 1`, a refusal (403, 429, a block page) comes back as the answer, with its `statusCode`, `responseHeaders` (such as `retry-after`) and page in `html`, instead of a 500 with no page |
+| `returnRefusals`            | boolean  | false    | With `maxTier: 1`, a refusal (403, 429, a block page) or a page tier 1 would hand to a browser (a challenge, a captcha widget, a JavaScript shell) comes back as the answer, with its `statusCode`, `responseHeaders` (such as `retry-after`) and page in `html`, instead of a 500 with no page. `timings[0]` carries tier 1's verdict (`status`, `reason`) |
 
 ### Embedded CAPTCHA widgets
 
