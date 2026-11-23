@@ -11,6 +11,7 @@ import { routeChallengeWait } from "../utils/challengeRouter"
 import { normalizeInputCookies, snapshotChallengeCookies, toCookies } from "../utils/cookies"
 import { DeadlineError, RequestBudget, sleep } from "../utils/deadline"
 import { type ChallengeType, hasAnubisChallenge, isBrowserErrorPage, isCloudflarePage } from "../utils/detect"
+import { environmentProxy } from "../utils/envProxy"
 import { trackMainDocumentResponses } from "../utils/mainResponse"
 import { followMetaRefresh } from "../utils/metaRefresh"
 import { isHardNetworkFailure } from "../utils/network"
@@ -142,7 +143,8 @@ async function runBrowserTierTask<T extends 3 | 4>(
             : gotoErr.message.split("\n")[0],
       }
     }
-    const earlyProxyFailure = proxyUrl ? proxyResponseFailure(mainResponse.status, mainResponse.headers) : undefined
+    const earlyProxyFailure =
+      proxyUrl || environmentProxy(url) ? proxyResponseFailure(mainResponse.status, mainResponse.headers) : undefined
     if (earlyProxyFailure) {
       return { tier, status: "error", durationMs: Date.now() - start, reason: earlyProxyFailure }
     }
