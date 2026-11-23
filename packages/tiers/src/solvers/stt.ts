@@ -13,7 +13,9 @@
 
 import { randomUUID } from "node:crypto"
 import { unlink } from "node:fs/promises"
+import { contextProxy, newProxiedRequestContext } from "@trawl/browser"
 import type { Page } from "patchright"
+import { environmentProxy } from "../utils/envProxy"
 import { runFfmpeg } from "./subprocess"
 
 const STT_URL = process.env.STT_URL?.trim() ?? ""
@@ -37,20 +39,42 @@ export async function transcribeAudio(
   timeoutMs: number,
 ): Promise<string | undefined> {
   // Audio URLs come from page markup; use the context's egress instead of a server-side fetch.
+  // `page.request` follows only a context's own proxy option, never HTTPS_PROXY, so a context
+  // without one would dial direct even where the browser itself leaves through the
+  // environment proxy. Those downloads take the environment proxy explicitly.
   const download = async (headers: Record<string, string>) => {
     signal?.throwIfAborted()
-    const response = await page.request.get(audioUrl, { headers, timeout: Math.max(1, timeoutMs) })
+    const context = page.context()
+    const viaEnvironment = contextProxy(context) ? undefined : environmentProxy(audioUrl)
+    const client = viaEnvironment
+      ? await newProxiedRequestContext(viaEnvironment, await context.cookies(audioUrl))
+      : page.request
     try {
       signal?.throwIfAborted()
-      return new Response(new Uint8Array(await response.body()), {
-        status: response.status(),
-        headers: response.headers(),
-      })
+      const response = await client.get(audioUrl, { headers, timeout: Math.max(1, timeoutMs) })
+      try {
+        signal?.throwIfAborted()
+        return new Response(new Uint8Array(await response.body()), {
+          status: response.status(),
+          headers: response.headers(),
+        })
+      } finally {
+        await response.dispose()
+      }
+    } catch (error) {
+      throw new Error(`audio download failed: ${describeError(error)}`)
     } finally {
-      await response.dispose()
+      if (client !== page.request) await client.dispose()
     }
   }
   return STT_URL ? transcribeWhisper(download, signal) : transcribeGoogle(download, signal)
+}
+
+// The first line of an error, with any URL credentials masked, so a log line can say why a
+// download or recogniser call failed without printing a proxy's user name or password.
+function describeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return (message.split("\n")[0] ?? "").replace(/\/\/[^/@\s]*@/g, "//**@").slice(0, 200)
 }
 
 // For audio the page already delivered in memory (for example AWS WAF embeds it in the
@@ -74,7 +98,10 @@ async function transcribeWhisper(
 ): Promise<string | undefined> {
   try {
     const res = await download({ "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/149" })
-    if (!res.ok) return
+    if (!res.ok) {
+      console.log("[stt] audio download failed:", res.status)
+      return
+    }
 
     const form = new FormData()
     form.append("file", await res.blob(), filename)
@@ -86,9 +113,15 @@ async function transcribeWhisper(
     if (STT_KEY) headers.Authorization = `Bearer ${STT_KEY}`
 
     const sttRes = await fetch(STT_URL, { method: "POST", headers, body: form, signal })
-    if (!sttRes.ok) return
-    return clean(await sttRes.text())
-  } catch {
+    if (!sttRes.ok) {
+      console.log("[stt] recogniser failed:", sttRes.status)
+      return
+    }
+    const text = await sttRes.text()
+    console.log("[stt] transcript:", JSON.stringify(text.slice(0, 200)))
+    return clean(text)
+  } catch (error) {
+    console.log("[stt] error:", describeError(error))
     return
   }
 }
@@ -167,7 +200,7 @@ async function transcribeGoogle(download: AudioDownload, signal?: AbortSignal): 
     }
     return
   } catch (err) {
-    console.log("[stt] error:", err instanceof Error ? err.message : err)
+    console.log("[stt] error:", describeError(err))
     return
   } finally {
     await Promise.all([mp3, flac8, flac16].map((path) => unlink(path).catch(() => {})))
@@ -179,4 +212,18 @@ async function transcribeGoogle(download: AudioDownload, signal?: AbortSignal): 
 // just normalize whitespace and lowercase (reCAPTCHA is case-insensitive).
 function clean(text: string): string {
   return text.toLowerCase().trim().replace(/\s+/g, " ")
+}
+
+// What gets typed into reCAPTCHA's audio answer. Whisper writes spoken digits as "7-4-2-9."
+// and ends phrases with a full stop, where a listener would type "7429" or the bare words.
+// Punctuation between two digits is dropped (the digits join), apostrophes inside a word
+// are dropped, and any other punctuation becomes a space. Letters and digits, in any
+// script, are kept as they are; the result is lowercased with single spaces.
+export function normaliseAudioAnswer(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/(?<=\p{N})[^\p{L}\p{N}\s]+(?=\p{N})/gu, "")
+    .replace(/(?<=\p{L})['\u2019](?=\p{L})/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
 }
