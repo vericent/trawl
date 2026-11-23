@@ -213,6 +213,11 @@ matching Linux User-Agent for fresh HTTP requests. This profile is not necessari
 the same browser version as Camoufox. Eligible clearance replays retain their
 saved browser User-Agent and cookies; rejected clearance falls back to the browser.
 
+Both transports use the environment proxy for requests without an explicit proxy:
+`HTTPS_PROXY` for HTTPS, `HTTP_PROXY` for HTTP (lowercase names take precedence),
+and hosts listed in `NO_PROXY` connect directly. An environment proxy does not count
+as a request proxy, so clearance saving and HTTP replay stay available.
+
 This option can help targets that reject the default HTTP fingerprint. It does
 not replace browser CAPTCHA solving or guarantee higher success. The addon adds
 native memory and worker threads. Select it for workloads that benefit from it.

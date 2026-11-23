@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Solve the AWS WAF CAPTCHA wall through its audio puzzle in the browser tier, using the existing speech-to-text configuration. Require an accepted answer and verified clearance, bound transcription and token validation to the local budget, and preserve configured external fallback. Transcripts without a usable answer request a fresh puzzle, and at most three answers are submitted per wall (#283).
 - Add `STT_MODEL` to choose the model name sent to `STT_URL` (default `whisper-1`).
 
+### Fixed
+- Route `TIER1_TRANSPORT=wreq` requests through the environment proxy as the default Bun transport does: `HTTPS_PROXY` for HTTPS, `HTTP_PROXY` for HTTP, lowercase names first, with Bun's `NO_PROXY` matching. Explicit request proxies still take precedence, and an environment proxy still does not disable clearance saving or HTTP replay. Previously wreq connected directly, so deployments whose only egress is a forward proxy failed Tier 1 and sent every page to a browser.
+
 ### Changed
 - Increase the default browser acquisition wait from 15 to 30 seconds so bursts can wait longer for a free browser. Keep explicit `BROWSER_ACQUIRE_TIMEOUT_MS` overrides and the request's overall deadline.
 
