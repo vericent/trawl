@@ -165,6 +165,32 @@ export function hasTurnstile(html: string): boolean {
   return false
 }
 
+// A captcha widget on a page with substance guards a form (contact, apply, newsletter); it is not
+// a shell waiting for the widget. The bar is Recon's `richly_rendered`
+// (vericent.io pipelines/recon/src/recon/signals.py): a title that isn't a challenge's, and either
+// more than 20 KB with at least 15 distinct links, or at least 8 distinct links and 400 characters
+// of text. Recon counts the text with only the tags removed; this counts it with scripts, styles
+// and templates removed too, so a page passes here only where it passes Recon's bar.
+// On Recon's 11-19 capture, 311 of the 320 content pages refused as recaptcha/turnstile shells met it.
+const WIDGET_PAGE_CHALLENGE_TITLE = /just a moment|attention required|access denied|security check|blocked|verify/i
+
+export function hasPageSubstance(html: string): boolean {
+  if (!/<a\b/i.test(html)) return false
+  const { document } = parseHTML(html)
+  const title = [...document.querySelectorAll("title")].find(isActiveElement)?.textContent?.trim() ?? ""
+  if (!title || WIDGET_PAGE_CHALLENGE_TITLE.test(title) || isCloudflareChallengeTitle(title)) return false
+  const links = new Set<string>()
+  for (const anchor of document.querySelectorAll("a[href]")) {
+    const href = htmlAttribute(anchor, "href")?.trim()
+    if (href) links.add(href)
+  }
+  if (html.length > 20_000 && links.size >= 15) return true
+  if (links.size < 8) return false
+  for (const node of document.querySelectorAll("head, script, style, template, noscript, svg")) node.remove()
+  const text = (document.body?.textContent ?? document.documentElement?.textContent ?? "").replace(/\s+/g, " ").trim()
+  return text.length >= 400
+}
+
 export function hasHcaptcha(html: string): boolean {
   return /class="h-captcha"|hcaptcha\.com\/1\/api/i.test(html)
 }

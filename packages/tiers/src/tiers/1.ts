@@ -18,6 +18,7 @@ import {
   hasDuckDuckGoChallenge,
   hasFriendlyCaptcha,
   hasHcaptcha,
+  hasPageSubstance,
   hasRecaptcha,
   hasShumei,
   hasTurnstile,
@@ -54,6 +55,9 @@ export interface Tier1Result extends TierResult {
   certificateError?: string
   cookies?: Cookie[]
 }
+
+// How much of a page hasPageSubstance reads when a captcha widget is found on it.
+const SUBSTANCE_MAX_BYTES = 2 * 1024 * 1024
 
 // Methods that may carry a request body per RFC 7231/9341. CONNECT is excluded
 // (tunneling verb), TRACE/GET/HEAD/OPTIONS excluded (no body semantics).
@@ -558,8 +562,17 @@ async function runTier1Once(
     // captcha widget via <script src="...api.js">. Plain fetch sees the shell and
     // would otherwise report success - but the real content (including the widget)
     // only renders after JS executes. Escalate so Tier 3 runs the page in a browser,
-    // executes JS, and the solver can engage the actual widget.
-    if (hasHcaptcha(previewText)) {
+    // executes JS, and the solver can engage the actual widget. A widget on a page with substance
+    // (a title, links and text: hasPageSubstance) guards a form and is not a shell: the page is the answer.
+    // It reads the page, not the 64 KiB preview: a theme's inline styles can fill the preview before <body>.
+    const widgetOnly = (found: boolean) =>
+      found &&
+      !hasPageSubstance(
+        decodedBytes.length <= previewLen
+          ? previewText
+          : new TextDecoder("utf-8", { fatal: false }).decode(decodedBytes.subarray(0, SUBSTANCE_MAX_BYTES)),
+      )
+    if (widgetOnly(hasHcaptcha(previewText))) {
       return {
         tier: 1,
         certificateError,
@@ -573,7 +586,7 @@ async function runTier1Once(
         statusCode: res.status,
       }
     }
-    if (hasRecaptcha(previewText)) {
+    if (widgetOnly(hasRecaptcha(previewText))) {
       return {
         tier: 1,
         certificateError,
@@ -587,7 +600,7 @@ async function runTier1Once(
         statusCode: res.status,
       }
     }
-    if (hasTurnstile(previewText)) {
+    if (widgetOnly(hasTurnstile(previewText))) {
       return {
         tier: 1,
         certificateError,
