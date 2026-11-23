@@ -130,6 +130,34 @@ export function isCloudflarePage(html: string, headers: Record<string, string>):
   return false
 }
 
+// Cloudflare's own error page for a site it can't serve: 409 "DNS resolution error" (1001/1014),
+// 52x (the origin's SSL or connection failed), 530 "Origin DNS error", 403 "Suspected Phishing" or
+// "DNS points to prohibited IP". It carries the cf-error-details element that isCloudflarePage reads
+// as a challenge, but no challenge: no challenge title, script, widget or cf-mitigated. A browser gets
+// the same page, so it is the site's error (or, with a 403/429, a refusal), never worth escalating.
+// On Recon's 11-19 capture, 95 such pages (409/52x/530) on 54 domains, and nine 403s, were escalated
+// as cloudflare-challenge.
+export function isCloudflareErrorPage(html: string, headers: Record<string, string>, status: number): boolean {
+  if (status < 400 || hasCloudflareChallengeHeader(headers) || !/cf-error-details/i.test(html)) return false
+  const { document } = parseHTML(html)
+  const details = [...document.querySelectorAll("*")].some(
+    (element) => /^cf-error-details$/i.test(htmlAttribute(element, "id") ?? "") && isActiveElement(element),
+  )
+  if (!details) return false
+  const title = [...document.querySelectorAll("title")].find(isActiveElement)?.textContent?.trim() ?? ""
+  if (isCloudflareChallengeTitle(title) || hasCloudflareChallengeScript(html, document)) return false
+  for (const element of document.querySelectorAll("*")) {
+    if (
+      /^(?:challenge-running|cf-challenge-running|turnstile-wrapper|challenge-form)$/i.test(
+        htmlAttribute(element, "id") ?? "",
+      ) &&
+      isActiveElement(element)
+    )
+      return false
+  }
+  return !hasTurnstile(html)
+}
+
 // Firefox's own internal about:neterror / about:certerror page - means the browser never
 // reached a real server at all (DNS failure, connection refused, TLS error, etc). Distinct
 // from a Cloudflare/WAF block: there's no origin response to retry against, so callers
