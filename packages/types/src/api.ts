@@ -105,6 +105,10 @@ export interface ScrapeRequest {
   // cookies and the session's challenge clearance. Off by default: it costs one request
   // per icon.
   favicons?: boolean
+  // Opt-in: return the response's bytes as `body` (base64, `bodyEncoding: "base64"`), with any
+  // Content-Encoding undone, so binary answers such as gzipped sitemaps reach the caller. Off by
+  // default: `html` already carries every text answer, and the bytes cost a second copy.
+  includeBody?: boolean
 }
 
 // One browser console message. Shaped after WebDriver's browser log so a consumer can
@@ -219,8 +223,11 @@ export interface ScrapeResponse {
   captchasSolved?: string[] // captcha types solved during this request (e.g. ['turnstile', 'recaptcha-v2'])
   captchaDiagnostics?: { kind: string; status: string }[]
   proxyUsed?: boolean // true if the winning tier routed through a proxy
-  // JSON representation of the navigation bytes returned by the native API.
-  body?: Record<string, number>
+  // The response's bytes, base64, only when the request set `includeBody`. Content-Encoding is
+  // already undone (the bytes are the identity representation; `responseHeaders` still name the
+  // upstream's encoding).
+  body?: string
+  bodyEncoding?: "base64"
   // Upstream response headers (lowercased keys), preserved verbatim so the proxy
   // can forward Set-Cookie, Content-Disposition, Content-Range, cache validators, etc.
   responseHeaders?: Record<string, string>

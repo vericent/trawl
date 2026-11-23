@@ -1,7 +1,14 @@
 import { PoolExhaustedError } from "@trawl/browser"
 import type { OrchestratorDeps } from "@trawl/tiers"
-import { RequestValidationError, ScrapeError, sanitizeHeaders, scrape, validateSessionId } from "@trawl/tiers"
-import type { ExtractResponse, ReadResponse, ScrapeRequest } from "@trawl/types"
+import {
+  decodeResponseBody,
+  RequestValidationError,
+  ScrapeError,
+  sanitizeHeaders,
+  scrape,
+  validateSessionId,
+} from "@trawl/tiers"
+import type { ExtractResponse, ReadResponse, ScrapeRequest, ScrapeResponse, ScrapeResult } from "@trawl/types"
 import { type Context, Elysia } from "elysia"
 import { flareSolverrError } from "../adapters/flaresolverr"
 import { getDeps, getPool } from "../deps"
@@ -9,6 +16,21 @@ import { type MetricsStore, metrics } from "../metrics"
 import { preparePageOperation } from "../pageContent/options"
 import { runLoggedScrape } from "../requestLogging"
 import { requestUrl, validateScrapeRequest } from "../validation"
+
+// The JSON answer's `body`: absent unless the request set `includeBody`, then base64 of the
+// identity bytes. Tier 1 keeps the wire bytes (the MITM proxy forwards them as they came), so its
+// Content-Encoding is undone here; the browser tiers' bodies are already decoded. Serialising the
+// Uint8Array itself would write one JSON key per byte, about 13 characters each.
+export function publicScrapeResult(result: ScrapeResult, includeBody: boolean): ScrapeResponse {
+  const { body, ...rest } = result
+  if (!includeBody || body === undefined) return rest
+  const bytes = result.tier === 1 ? decodeResponseBody(body, result.responseHeaders?.["content-encoding"]) : body
+  return {
+    ...rest,
+    body: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64"),
+    bodyEncoding: "base64",
+  }
+}
 
 // Native TRAWL API - richer response (tier, timings, sessionCached).
 // Error mapping:
@@ -54,7 +76,7 @@ export function scrapeRoute(
             }
           : undefined,
       )
-      return output ?? result
+      return output ?? publicScrapeResult(result, req.includeBody === true)
     } catch (err) {
       if (err instanceof RequestValidationError) {
         set.status = err.statusCode
