@@ -30,6 +30,7 @@ import {
 } from "../utils/detect"
 import { environmentProxy } from "../utils/envProxy"
 import { isGoogleSorryUrl } from "../utils/googleSorry"
+import { firefoxHeaderCase } from "../utils/headerCase"
 import { normalizeHtml } from "../utils/html"
 import { HttpSessionCookies } from "../utils/httpSessionCookies"
 import { planPowWall } from "../utils/nativePow"
@@ -224,7 +225,7 @@ export async function runTier1(
       method: submit.method,
       body: submit.body,
       redirect: "manual",
-      headers: {
+      headers: firefoxHeaderCase({
         "user-agent": tier1UserAgent(FINGERPRINT.userAgent),
         accept: "*/*",
         "accept-language": "en-US,en;q=0.9",
@@ -233,7 +234,7 @@ export async function runTier1(
         ...(submit.method === "POST" ? { origin: new URL(pageUrl).origin } : {}),
         ...(submit.contentType ? { "content-type": submit.contentType } : {}),
         cookie: cookies.header(submit.url),
-      },
+      }),
       ...(networkProxy || proxy ? { proxy: networkProxy ?? proxy } : {}),
       ...(trustedProxyCa ? { tls: { ca: [...rootCertificates, trustedProxyCa] } } : {}),
       ...(ignoreCertificateErrors ? { tls: { rejectUnauthorized: false } } : {}),
@@ -332,7 +333,9 @@ async function runTier1Once(
           signal: requestSignal,
           method: currentMethod,
           body: currentBody,
-          headers: sessionCookies ? { ...headers, cookie: sessionCookies.header(currentUrl) } : headers,
+          headers: firefoxHeaderCase(
+            sessionCookies ? { ...headers, cookie: sessionCookies.header(currentUrl) } : headers,
+          ),
           // Manual redirects let an opted-in request retry only the TLS hop that failed.
           // Restarting from the original URL could submit a successful POST twice when a
           // later redirect target has an invalid certificate.
